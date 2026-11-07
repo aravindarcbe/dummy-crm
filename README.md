@@ -44,3 +44,7 @@ If `createsuperuser` was run without typing a username, it defaults to your OS u
 Nothing in the code hardcodes any name — this is purely local account data.
 
 Google sign-in ("Sign in with Google") is planned but not wired in yet — it'll be added back closer to launch.
+
+## Deploying to production
+
+See [`deploy/DEPLOY.md`](deploy/DEPLOY.md) for the full AWS EC2 deployment runbook (Nginx + Gunicorn + Postgres, Let's Encrypt via Certbot, nightly backups) — matches the plan in `docs/spec.md` §6-7.
