@@ -11,7 +11,7 @@
                 <span>Material line items</span>
                 {% if t.status != "CLOSED" %}
                 <a href="{% url 'rentals:rental_return' t.pk %}" class="btn btn-sm btn-primary">
-                    <i class="bi bi-arrow-return-left"></i> Process return
+                    <i data-lucide="undo-2"></i> Process return
                 </a>
                 {% endif %}
             </div>

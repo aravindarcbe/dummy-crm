@@ -37,6 +37,9 @@ ALLOWED_HOSTS = [h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "loca
 # Change via .env (COMPANY_NAME=Your Company Name) rather than editing here.
 COMPANY_NAME = os.environ.get("COMPANY_NAME", "SSM Centring Rentals")
 
+LOGIN_URL = "rentals:login"
+LOGIN_REDIRECT_URL = "/"
+
 MESSAGE_TAGS = {
     message_constants.ERROR: "danger",
 }

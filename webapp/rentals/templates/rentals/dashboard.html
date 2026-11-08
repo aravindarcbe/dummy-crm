@@ -45,7 +45,7 @@
 
 {% if refunds_owed_to_customers %}
 <div class="alert alert-danger d-flex align-items-center gap-2">
-    <i class="bi bi-exclamation-circle"></i>
+    <i data-lucide="circle-alert"></i>
     Refunds owed to customers on open transactions: <strong>₹{{ refunds_owed_to_customers|money }}</strong>
 </div>
 {% endif %}

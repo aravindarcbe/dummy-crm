@@ -4,10 +4,23 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
-from django.db.models import Sum, F
+from django.db.models import Sum, F, Count, Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse_lazy
+from django.utils.decorators import method_decorator
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView
 
-from .forms import RentalTransactionForm, RentalLineItemFormSet
+from .forms import (
+    RentalTransactionForm,
+    RentalLineItemFormSet,
+    CustomerForm,
+    MaterialForm,
+    ReceiptForm,
+    PaymentForm,
+    ProductPurchaseForm,
+    DailyExpenseForm,
+)
 from .models import (
     Customer,
     Material,
@@ -68,13 +81,13 @@ MANAGE_SECTIONS = [
     {
         "title": "Customers",
         "description": "Names, phone numbers, and addresses.",
-        "links": [("Customers", "/admin/rentals/customer/")],
+        "links": [("Customers", "/customers/")],
     },
     {
         "title": "Materials & Stock",
         "description": "What you rent out, and how much of it you have.",
         "links": [
-            ("Materials", "/admin/rentals/material/"),
+            ("Materials", "/materials/"),
             ("Material categories", "/admin/rentals/materialcategory/"),
             ("Stock movements", "/admin/rentals/stockmovement/"),
         ],
@@ -90,15 +103,15 @@ MANAGE_SECTIONS = [
     {
         "title": "Money In",
         "description": "Payments received from customers against a rental.",
-        "links": [("Receipts", "/admin/rentals/receipt/")],
+        "links": [("Receipts", "/receipts/")],
     },
     {
         "title": "Money Out",
         "description": "Salary, loans, stock purchases, and day-to-day expenses.",
         "links": [
-            ("Payments", "/admin/rentals/payment/"),
-            ("Product purchases", "/admin/rentals/productpurchase/"),
-            ("Daily expenses", "/admin/rentals/dailyexpense/"),
+            ("Payments", "/payments/"),
+            ("Product purchases", "/purchases/"),
+            ("Daily expenses", "/expenses/"),
         ],
     },
 ]
@@ -286,3 +299,276 @@ def global_search(request):
         "rentals/search_results.html",
         {"query": query, "customers": customers[:20], "transactions": transactions.distinct()[:20], "materials": materials[:20]},
     )
+
+
+# ---------------------------------------------------------------------------
+# Custom CRUD screens for Customers, Materials, Receipts, Payments, Product
+# Purchases, and Daily Expenses — previously only available via /admin/.
+# Two small shared mixins (not a full abstraction, just the identical htmx
+# wiring described in the plan) so each model's views stay a few lines each.
+# ---------------------------------------------------------------------------
+
+
+class HtmxRowsMixin:
+    """ListViews: an htmx search request re-renders only the rows partial."""
+
+    rows_template_name = None
+
+    def get_template_names(self):
+        if self.request.headers.get("HX-Request") == "true":
+            return [self.rows_template_name]
+        return [self.template_name]
+
+
+class HtmxDeleteMixin:
+    """DeleteViews: POST-only, no confirm page — htmx removes the row in place.
+
+    Overrides post() directly rather than delete(): Django's BaseDeleteView.post()
+    (since the Form-based rewrite in Django 4.0) goes through get_form()/form_valid()
+    and never calls self.delete() at all, so overriding delete() alone is silently
+    ignored — confirmed by testing, not assumed.
+    """
+
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        self.object.delete()
+        if request.headers.get("HX-Request") == "true":
+            return HttpResponse(status=200)
+        return redirect(self.success_url)
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class CustomerListView(HtmxRowsMixin, ListView):
+    model = Customer
+    template_name = "rentals/customer_list.html"
+    rows_template_name = "rentals/_customer_rows.html"
+    context_object_name = "customers"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = Customer.objects.annotate(
+            open_count=Count(
+                "rental_transactions",
+                filter=~Q(rental_transactions__status=RentalTransaction.STATUS_CLOSED),
+            )
+        )
+        query = (self.request.GET.get("q") or "").strip()
+        if query:
+            qs = qs.filter(name__icontains=query) | qs.filter(phone__icontains=query) | qs.filter(place__icontains=query)
+        return qs
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class CustomerCreateView(CreateView):
+    model = Customer
+    form_class = CustomerForm
+    template_name = "rentals/customer_form.html"
+    success_url = reverse_lazy("rentals:customer_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class CustomerUpdateView(UpdateView):
+    model = Customer
+    form_class = CustomerForm
+    template_name = "rentals/customer_form.html"
+    success_url = reverse_lazy("rentals:customer_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class CustomerDeleteView(HtmxDeleteMixin, DeleteView):
+    model = Customer
+    success_url = reverse_lazy("rentals:customer_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class MaterialListView(HtmxRowsMixin, ListView):
+    model = Material
+    template_name = "rentals/material_list.html"
+    rows_template_name = "rentals/_material_rows.html"
+    context_object_name = "materials"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = Material.objects.select_related("category")
+        query = (self.request.GET.get("q") or "").strip()
+        if query:
+            qs = qs.filter(size_label__icontains=query) | qs.filter(category__name__icontains=query)
+        return qs
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class MaterialCreateView(CreateView):
+    model = Material
+    form_class = MaterialForm
+    template_name = "rentals/material_form.html"
+    success_url = reverse_lazy("rentals:material_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class MaterialUpdateView(UpdateView):
+    model = Material
+    form_class = MaterialForm
+    template_name = "rentals/material_form.html"
+    success_url = reverse_lazy("rentals:material_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class MaterialDeleteView(HtmxDeleteMixin, DeleteView):
+    model = Material
+    success_url = reverse_lazy("rentals:material_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class ReceiptListView(HtmxRowsMixin, ListView):
+    model = Receipt
+    template_name = "rentals/receipt_list.html"
+    rows_template_name = "rentals/_receipt_rows.html"
+    context_object_name = "receipts"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = Receipt.objects.select_related("transaction", "transaction__customer")
+        query = (self.request.GET.get("q") or "").strip()
+        if query:
+            qs = qs.filter(transaction__invoice_number__icontains=query) | qs.filter(
+                transaction__customer__name__icontains=query
+            )
+        return qs
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class ReceiptCreateView(CreateView):
+    model = Receipt
+    form_class = ReceiptForm
+    template_name = "rentals/receipt_form.html"
+    success_url = reverse_lazy("rentals:receipt_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class ReceiptUpdateView(UpdateView):
+    model = Receipt
+    form_class = ReceiptForm
+    template_name = "rentals/receipt_form.html"
+    success_url = reverse_lazy("rentals:receipt_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class ReceiptDeleteView(HtmxDeleteMixin, DeleteView):
+    model = Receipt
+    success_url = reverse_lazy("rentals:receipt_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class PaymentListView(HtmxRowsMixin, ListView):
+    model = Payment
+    template_name = "rentals/payment_list.html"
+    rows_template_name = "rentals/_payment_rows.html"
+    context_object_name = "payments"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = Payment.objects.all()
+        query = (self.request.GET.get("q") or "").strip()
+        if query:
+            qs = qs.filter(description__icontains=query) | qs.filter(payee__icontains=query)
+        return qs
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class PaymentCreateView(CreateView):
+    model = Payment
+    form_class = PaymentForm
+    template_name = "rentals/payment_form.html"
+    success_url = reverse_lazy("rentals:payment_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class PaymentUpdateView(UpdateView):
+    model = Payment
+    form_class = PaymentForm
+    template_name = "rentals/payment_form.html"
+    success_url = reverse_lazy("rentals:payment_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class PaymentDeleteView(HtmxDeleteMixin, DeleteView):
+    model = Payment
+    success_url = reverse_lazy("rentals:payment_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class ProductPurchaseListView(HtmxRowsMixin, ListView):
+    model = ProductPurchase
+    template_name = "rentals/purchase_list.html"
+    rows_template_name = "rentals/_purchase_rows.html"
+    context_object_name = "purchases"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = ProductPurchase.objects.select_related("category")
+        query = (self.request.GET.get("q") or "").strip()
+        if query:
+            qs = qs.filter(category__name__icontains=query) | qs.filter(size_label__icontains=query)
+        return qs
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class ProductPurchaseCreateView(CreateView):
+    model = ProductPurchase
+    form_class = ProductPurchaseForm
+    template_name = "rentals/purchase_form.html"
+    success_url = reverse_lazy("rentals:purchase_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class ProductPurchaseUpdateView(UpdateView):
+    model = ProductPurchase
+    form_class = ProductPurchaseForm
+    template_name = "rentals/purchase_form.html"
+    success_url = reverse_lazy("rentals:purchase_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class ProductPurchaseDeleteView(HtmxDeleteMixin, DeleteView):
+    model = ProductPurchase
+    success_url = reverse_lazy("rentals:purchase_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class DailyExpenseListView(HtmxRowsMixin, ListView):
+    model = DailyExpense
+    template_name = "rentals/expense_list.html"
+    rows_template_name = "rentals/_expense_rows.html"
+    context_object_name = "expenses"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = DailyExpense.objects.all()
+        query = (self.request.GET.get("q") or "").strip()
+        if query:
+            qs = qs.filter(category__icontains=query) | qs.filter(description__icontains=query)
+        return qs
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class DailyExpenseCreateView(CreateView):
+    model = DailyExpense
+    form_class = DailyExpenseForm
+    template_name = "rentals/expense_form.html"
+    success_url = reverse_lazy("rentals:expense_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class DailyExpenseUpdateView(UpdateView):
+    model = DailyExpense
+    form_class = DailyExpenseForm
+    template_name = "rentals/expense_form.html"
+    success_url = reverse_lazy("rentals:expense_list")
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class DailyExpenseDeleteView(HtmxDeleteMixin, DeleteView):
+    model = DailyExpense
+    success_url = reverse_lazy("rentals:expense_list")

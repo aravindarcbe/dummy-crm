@@ -1,17 +1,15 @@
-<!-- Placeholder logo (stacked planks icon, no text baked in) -->
-<!-- To replace with a real logo: swap this file (or add logo.png and update the <img> src -->
-<!-- in rentals/templates/rentals/_sidebar_nav.html). The company name text next to it is -->
-<!-- separate and configurable via the COMPANY_NAME setting, so you don't need to touch this -->
-<!-- file just to change the name. -->
+<!-- SSM (Sri Sai Murugan Centring Rentals) logo mark: abstract navy/green skyline icon, -->
+<!-- approximating the real business-card logo (hand-authored, not a vector trace of the -->
+<!-- original file). Swap this file for the real vector asset if one becomes available — -->
+<!-- rentals/templates/rentals/_sidebar_nav.html references it by this same path, so no -->
+<!-- template change is needed. The company name text next to it is separate and -->
+<!-- configurable via the COMPANY_NAME setting. -->
 <svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#4f7cff"/>
-      <stop offset="1" stop-color="#2f4fb0"/>
-    </linearGradient>
-  </defs>
-  <rect width="36" height="36" rx="8" fill="url(#g)"/>
-  <rect x="8" y="10" width="20" height="4" rx="2" fill="#ffffff"/>
-  <rect x="8" y="16" width="20" height="4" rx="2" fill="#ffffff" opacity="0.85"/>
-  <rect x="8" y="22" width="20" height="4" rx="2" fill="#ffffff" opacity="0.7"/>
+  <rect x="7" y="17" width="6" height="13" fill="#1a3a6b"/>
+  <polygon points="7,17 10,13 13,17" fill="#1a3a6b"/>
+  <rect x="15" y="9" width="7" height="21" fill="#1a3a6b"/>
+  <polygon points="15,9 18.5,4 22,9" fill="#1a3a6b"/>
+  <rect x="24" y="14" width="6" height="16" fill="#4c9a2a"/>
+  <polygon points="24,14 27,10 30,14" fill="#4c9a2a"/>
+  <rect x="5" y="30" width="26" height="2" rx="1" fill="#1a3a6b"/>
 </svg>
