@@ -9,3 +9,9 @@ staticfiles/
 media/
 .DS_Store
 *.log
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/terraform.tfvars

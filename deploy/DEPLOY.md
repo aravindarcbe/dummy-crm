@@ -2,7 +2,30 @@
 
 Matches the plan in [`docs/spec.md`](../docs/spec.md) §6-7: one EC2 instance running Postgres, Nginx, and Gunicorn — no RDS, no other AWS services. Free for the first 12 months under the AWS Free Tier; ~$6-9/month after that.
 
-## 1. Launch the instance (AWS Console)
+## 1. Launch the instance
+
+Two ways to do this — pick one. Both produce the same thing: one Ubuntu EC2 instance, a security group (SSH from your IP only, HTTP/HTTPS from anywhere), and an Elastic IP.
+
+### Option A — Terraform (recommended)
+
+Infrastructure as code: the instance, security group, and Elastic IP are all defined in [`terraform/`](../terraform/) and reproducible from a single `terraform apply`. Requires [Terraform](https://developer.hashicorp.com/terraform/install) installed locally and AWS credentials configured (`aws configure`, or `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` env vars) for an IAM user with EC2 permissions.
+
+1. In the EC2 console, create a key pair first if you don't have one (**Key Pairs → Create key pair**) — Terraform references an existing key pair by name rather than creating one, since the private key must be downloaded once and kept safe.
+2. Find your own public IP (for the SSH security group rule): `curl https://checkip.amazonaws.com`
+3. ```bash
+   cd terraform
+   cp terraform.tfvars.example terraform.tfvars
+   # edit terraform.tfvars: key_name and ssh_allowed_cidr at minimum
+   terraform init
+   terraform plan    # review what it will create
+   terraform apply   # type yes to confirm
+   ```
+4. Note the `public_ip` output — that's your Elastic IP. (Optional but recommended) Point a domain's **A record** at it now, so it has time to propagate before Certbot in step 4 below.
+5. Skip to **step 2** below using the IP/key from this output.
+
+To tear the instance down later (e.g. to stop paying before the free tier ends, or to rebuild from scratch): `terraform destroy` — this deletes the instance, security group, and releases the Elastic IP. Your database lives only on that instance's disk, so take a backup first (see §7) if you don't want to lose it.
+
+### Option B — AWS Console (manual, no Terraform)
 
 1. **EC2 → Launch instance**
    - AMI: **Ubuntu Server 22.04 or 24.04 LTS**
